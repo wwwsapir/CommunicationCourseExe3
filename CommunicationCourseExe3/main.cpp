@@ -4,27 +4,32 @@ using namespace std;
 #pragma comment(lib, "Ws2_32.lib")
 #include <winsock2.h>
 #include <string.h>
-#include <time.h>
+#include "http.h"
 
 struct SocketState
 {
 	SOCKET id;			// Socket handle
 	int	recv;			// Receiving?
 	int	send;			// Sending?
-	int sendSubType;	// Sending sub-type
-	char buffer[128];
-	int len;
+	HttpRequest req1;
+	HttpRequest req2;
 };
 
-const int TIME_PORT = 27015;
+const int HTTP_SERVER_PORT = 27015;
 const int MAX_SOCKETS = 60;
 const int EMPTY = 0;
 const int LISTEN = 1;
 const int RECEIVE = 2;
 const int IDLE = 3;
 const int SEND = 4;
-const int SEND_TIME = 1;
-const int SEND_SECONDS = 2;
+
+const int GET = 1;
+const int POST = 2;
+const int PUT = 3;
+const int DEL = 4;
+const int OPTIONS = 5;
+const int HEAD = 6;
+const int TRACE = 7;
 
 bool addSocket(SOCKET id, int what);
 void removeSocket(int index);
@@ -45,13 +50,9 @@ void main()
 	// Sockets implementation.
 	WSAData wsaData;
 
-	// Call WSAStartup and return its value as an integer and check for errors.
-	// The WSAStartup function initiates the use of WS2_32.DLL by a process.
-	// First parameter is the version number 2.2.
-	// The WSACleanup function destructs the use of WS2_32.DLL by a process.
 	if (NO_ERROR != WSAStartup(MAKEWORD(2, 2), &wsaData))
 	{
-		cout << "Time Server: Error at WSAStartup()\n";
+		cout << "HTTP server: Error at WSAStartup()\n";
 		return;
 	}
 
@@ -75,7 +76,7 @@ void main()
 	// error number associated with the last error that occurred.
 	if (INVALID_SOCKET == listenSocket)
 	{
-		cout << "Time Server: Error at socket(): " << WSAGetLastError() << endl;
+		cout << "HTTP Server: Error at socket(): " << WSAGetLastError() << endl;
 		WSACleanup();
 		return;
 	}
@@ -98,7 +99,7 @@ void main()
 	// IP Port. The htons (host to network - short) function converts an
 	// unsigned short from host to TCP/IP network byte order 
 	// (which is big-endian).
-	serverService.sin_port = htons(TIME_PORT);
+	serverService.sin_port = htons(HTTP_SERVER_PORT);
 
 	// Bind the socket for client's requests.
 
@@ -108,7 +109,7 @@ void main()
 	// sockaddr structure (in bytes).
 	if (SOCKET_ERROR == bind(listenSocket, (SOCKADDR *)&serverService, sizeof(serverService)))
 	{
-		cout << "Time Server: Error at bind(): " << WSAGetLastError() << endl;
+		cout << "HTTP Server: Error at bind(): " << WSAGetLastError() << endl;
 		closesocket(listenSocket);
 		WSACleanup();
 		return;
@@ -119,7 +120,7 @@ void main()
 	// from other clients). This sets the backlog parameter.
 	if (SOCKET_ERROR == listen(listenSocket, 5))
 	{
-		cout << "Time Server: Error at listen(): " << WSAGetLastError() << endl;
+		cout << "HTTP Server: Error at listen(): " << WSAGetLastError() << endl;
 		closesocket(listenSocket);
 		WSACleanup();
 		return;
@@ -160,7 +161,7 @@ void main()
 		nfd = select(0, &waitRecv, &waitSend, NULL, NULL);
 		if (nfd == SOCKET_ERROR)
 		{
-			cout << "Time Server: Error at select(): " << WSAGetLastError() << endl;
+			cout << "HTTP Server: Error at select(): " << WSAGetLastError() << endl;
 			WSACleanup();
 			return;
 		}
@@ -199,13 +200,20 @@ void main()
 	}
 
 	// Closing connections and Winsock.
-	cout << "Time Server: Closing Connection.\n";
+	cout << "HTTP Server: Closing Connection.\n";
 	closesocket(listenSocket);
 	WSACleanup();
 }
 
 bool addSocket(SOCKET id, int what)
 {
+	// Set the socket to be in non-blocking mode.
+	unsigned long flag = 1;
+	if (ioctlsocket(id, FIONBIO, &flag) != 0)
+	{
+		cout << "Time Server: Error at ioctlsocket(): " << WSAGetLastError() << endl;
+	}
+
 	for (int i = 0; i < MAX_SOCKETS; i++)
 	{
 		if (sockets[i].recv == EMPTY)
@@ -213,7 +221,6 @@ bool addSocket(SOCKET id, int what)
 			sockets[i].id = id;
 			sockets[i].recv = what;
 			sockets[i].send = IDLE;
-			sockets[i].len = 0;
 			socketsCount++;
 			return (true);
 		}
@@ -226,6 +233,8 @@ void removeSocket(int index)
 	sockets[index].recv = EMPTY;
 	sockets[index].send = EMPTY;
 	socketsCount--;
+	sockets[index].req1.isEmpty = EMPTY_REQ;
+	sockets[index].req2.isEmpty = EMPTY_REQ;
 }
 
 void acceptConnection(int index)
@@ -237,19 +246,10 @@ void acceptConnection(int index)
 	SOCKET msgSocket = accept(id, (struct sockaddr *)&from, &fromLen);
 	if (INVALID_SOCKET == msgSocket)
 	{
-		cout << "Time Server: Error at accept(): " << WSAGetLastError() << endl;
+		cout << "HTTP Server: Error at accept(): " << WSAGetLastError() << endl;
 		return;
 	}
-	cout << "Time Server: Client " << inet_ntoa(from.sin_addr) << ":" << ntohs(from.sin_port) << " is connected." << endl;
-
-	//
-	// Set the socket to be in non-blocking mode.
-	//
-	unsigned long flag = 1;
-	if (ioctlsocket(msgSocket, FIONBIO, &flag) != 0)
-	{
-		cout << "Time Server: Error at ioctlsocket(): " << WSAGetLastError() << endl;
-	}
+	cout << "HTTP Server: Client " << inet_ntoa(from.sin_addr) << ":" << ntohs(from.sin_port) << " is connected." << endl;
 
 	if (addSocket(msgSocket, RECEIVE) == false)
 	{
@@ -262,95 +262,93 @@ void acceptConnection(int index)
 void receiveMessage(int index)
 {
 	SOCKET msgSocket = sockets[index].id;
+	char reqBuffer[10000];
 
-	int len = sockets[index].len;
-	int bytesRecv = recv(msgSocket, &sockets[index].buffer[len], sizeof(sockets[index].buffer) - len, 0);
+	int bytesRecv = recv(msgSocket, reqBuffer, 10000, 0);
 
 	if (SOCKET_ERROR == bytesRecv)
 	{
-		cout << "Time Server: Error at recv(): " << WSAGetLastError() << endl;
+		cout << "HTTP Server: Error at recv(): " << WSAGetLastError() << endl;
 		closesocket(msgSocket);
 		removeSocket(index);
 		return;
 	}
-	if (bytesRecv == 0)
+
+	HttpRequest req;
+	int isValid = parseHttpRequest(reqBuffer, bytesRecv, &req);
+	if (isValid == INVALID_HTTP_MSG)
 	{
-		closesocket(msgSocket);
-		removeSocket(index);
+		/*closesocket(msgSocket);
+		removeSocket(index);*/
+
 		return;
 	}
 	else
 	{
-		sockets[index].buffer[len + bytesRecv] = '\0'; //add the null-terminating to make it a string
-		cout << "Time Server: Recieved: " << bytesRecv << " bytes of \"" << &sockets[index].buffer[len] << "\" message.\n";
-
-		sockets[index].len += bytesRecv;
-
-		if (sockets[index].len > 0)
+		if (sockets[index].req1.isEmpty == EMPTY_REQ)
 		{
-			if (strncmp(sockets[index].buffer, "TimeString", 10) == 0)
-			{
-				sockets[index].send = SEND;
-				sockets[index].sendSubType = SEND_TIME;
-				memcpy(sockets[index].buffer, &sockets[index].buffer[10], sockets[index].len - 10);
-				sockets[index].len -= 10;
-				return;
-			}
-			else if (strncmp(sockets[index].buffer, "SecondsSince1970", 16) == 0)
-			{
-				sockets[index].send = SEND;
-				sockets[index].sendSubType = SEND_SECONDS;
-				memcpy(sockets[index].buffer, &sockets[index].buffer[16], sockets[index].len - 16);
-				sockets[index].len -= 16;
-				return;
-			}
-			else if (strncmp(sockets[index].buffer, "Exit", 4) == 0)
-			{
-				closesocket(msgSocket);
-				removeSocket(index);
-				return;
-			}
+			sockets[index].req1 = req;
+		}
+		else
+		{
+			sockets[index].req2 = req;
+		}
+
+		if (sockets[index].req1.isEmpty != EMPTY_REQ)
+		{
+			sockets[index].send = SEND;
 		}
 	}
-
 }
 
 void sendMessage(int index)
 {
 	int bytesSent = 0;
-	char sendBuff[255];
 
 	SOCKET msgSocket = sockets[index].id;
-	if (sockets[index].sendSubType == SEND_TIME)
+	HttpResponse response;
+	switch (sockets[index].req1.method)
 	{
-		// Answer client's request by the current time string.
-
-		// Get the current time.
-		time_t timer;
-		time(&timer);
-		// Parse the current time to printable string.
-		strcpy(sendBuff, ctime(&timer));
-		sendBuff[strlen(sendBuff) - 1] = 0; //to remove the new-line from the created string
+	case GET:
+		response = handleGetRequest(sockets[index].req1);
+		break;
+	case POST:
+		response = handlePostRequest(sockets[index].req1);
+		break;
+	case PUT:
+		response = handlePutRequest(sockets[index].req1);
+		break;
+	case TRACE:
+		response = handleTraceRequest(sockets[index].req1);
+		break;
+	case OPTIONS:
+		response = handleOptionsRequest(sockets[index].req1);
+		break;
+	case HEAD:
+		response = handleHeadRequest(sockets[index].req1);
+		break;
+	case DEL:
+		response = handleDeleteRequest(sockets[index].req1);
+		break;
 	}
-	else if (sockets[index].sendSubType == SEND_SECONDS)
-	{
-		// Answer client's request by the current time in seconds.
 
-		// Get the current time.
-		time_t timer;
-		time(&timer);
-		// Convert the number to string.
-		itoa((int)timer, sendBuff, 10);
-	}
-
-	bytesSent = send(msgSocket, sendBuff, (int)strlen(sendBuff), 0);
+	char responseStrBuffer[10000];
+	int responseLen = httpResponseToString(response, responseStrBuffer);
+	bytesSent = send(msgSocket, responseStrBuffer, responseLen, 0);
 	if (SOCKET_ERROR == bytesSent)
 	{
-		cout << "Time Server: Error at send(): " << WSAGetLastError() << endl;
+		cout << "HTTP Server: Error at send(): " << WSAGetLastError() << endl;
 		return;
 	}
 
-	cout << "Time Server: Sent: " << bytesSent << "\\" << strlen(sendBuff) << " bytes of \"" << sendBuff << "\" message.\n";
-
-	sockets[index].send = IDLE;
+	// If there's a second message waiting for response then move it to be the first one
+	if (sockets[index].req2.isEmpty == EMPTY_REQ)
+	{
+		sockets[index].send = IDLE;
+	}
+	else
+	{
+		sockets[index].req1 = sockets[index].req2;
+		sockets[index].req2.isEmpty = EMPTY_REQ;
+	}
 }
