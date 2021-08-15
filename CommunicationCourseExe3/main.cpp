@@ -278,10 +278,12 @@ void receiveMessage(int index)
 	int isValid = parseHttpRequest(reqBuffer, bytesRecv, &req);
 	if (isValid == INVALID_HTTP_MSG)
 	{
-		/*closesocket(msgSocket);
-		removeSocket(index);*/
-
 		return;
+	}
+	else if (strcmp(req.connectionHeader, "close") == 0)
+	{
+		closesocket(msgSocket);
+		removeSocket(index);
 	}
 	else
 	{
