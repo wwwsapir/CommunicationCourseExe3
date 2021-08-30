@@ -1,41 +1,39 @@
 #define _CRT_SECURE_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
 #include <iostream>
 using namespace std;
-#pragma comment(lib, "Ws2_32.lib")
-#include <winsock2.h>
-#include <string.h>
-#include "http.h"
 
-struct SocketState
-{
-	SOCKET id;			// Socket handle
-	int	recv;			// Receiving?
-	int	send;			// Sending?
-	HttpRequest req1;
-	HttpRequest req2;
-};
+#include <string.h>
+#include "SocketState.h"
+
+
 
 const int HTTP_SERVER_PORT = 27015;
 const int MAX_SOCKETS = 60;
+
 const int EMPTY = 0;
 const int LISTEN = 1;
 const int RECEIVE = 2;
 const int IDLE = 3;
 const int SEND = 4;
 
-const int GET = 1;
-const int POST = 2;
-const int PUT = 3;
-const int DEL = 4;
-const int OPTIONS = 5;
-const int HEAD = 6;
-const int TRACE = 7;
+
+enum httpMethods { 	GET = 1, POST, PUT, DEL, OPTIONS, HEAD, TRACE };
+//const int GET = 1;
+//const int POST = 2;
+//const int PUT = 3;
+//const int DEL = 4;
+//const int OPTIONS = 5;
+//const int HEAD = 6;
+//const int TRACE = 7;
 
 bool addSocket(SOCKET id, int what);
 void removeSocket(int index);
 void acceptConnection(int index);
 void receiveMessage(int index);
 void sendMessage(int index);
+void pain();
 
 struct SocketState sockets[MAX_SOCKETS] = { 0 };
 int socketsCount = 0;
@@ -55,7 +53,6 @@ void main()
 		cout << "HTTP server: Error at WSAStartup()\n";
 		return;
 	}
-
 	// Server side:
 	// Create and bind a socket to an internet address.
 	// Listen through the socket for incoming connections.
@@ -312,25 +309,25 @@ void sendMessage(int index)
 	switch (sockets[index].req1.method)
 	{
 	case GET:
-		response = handleGetRequest(sockets[index].req1);
+		//response = handleGetRequest(sockets[index].req1);
 		break;
 	case POST:
-		response = handlePostRequest(sockets[index].req1);
+		//response = handlePostRequest(sockets[index].req1);
 		break;
 	case PUT:
-		response = handlePutRequest(sockets[index].req1);
+		//response = handlePutRequest(sockets[index].req1);
 		break;
 	case TRACE:
-		response = handleTraceRequest(sockets[index].req1);
+		//response = handleTraceRequest(sockets[index].req1);
 		break;
 	case OPTIONS:
-		response = handleOptionsRequest(sockets[index].req1);
+		//response = handleOptionsRequest(sockets[index].req1);
 		break;
 	case HEAD:
-		response = handleHeadRequest(sockets[index].req1);
+		//response = handleHeadRequest(sockets[index].req1);
 		break;
 	case DEL:
-		response = handleDeleteRequest(sockets[index].req1);
+		//response = handleDeleteRequest(sockets[index].req1);
 		break;
 	}
 
