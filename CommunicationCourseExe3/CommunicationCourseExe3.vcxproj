@@ -112,12 +112,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="http.cpp" />
-    <ClCompile Include="tcp.cpp" />
+    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Constants.h" />
     <ClInclude Include="http.h" />
-    <ClInclude Include="SocketState.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="index.html" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -13,9 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="serverFiles">
+      <UniqueIdentifier>{63dad127-c24e-4063-af6c-7c677b7c5eec}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="tcp.cpp">
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="http.cpp">
@@ -26,11 +29,10 @@
     <ClInclude Include="http.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="Constants.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SocketState.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="index.html">
+      <Filter>serverFiles</Filter>
+    </None>
   </ItemGroup>
 </Project>

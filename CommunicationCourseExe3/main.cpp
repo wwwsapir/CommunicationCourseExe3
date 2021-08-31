@@ -1,11 +1,20 @@
-#define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
-
-#include <iostream>
 using namespace std;
-
+#include <iostream>
 #include <string.h>
-#include "SocketState.h"
+#include <winsock2.h>
+#pragma comment(lib, "Ws2_32.lib")
+#include "http.h"
+
+
+struct SocketState
+{
+	SOCKET id;			// Socket handle
+	int	recv;			// Receiving?
+	int	send;			// Sending?
+	HttpRequest req1;
+	HttpRequest req2;
+};
 
 
 
@@ -19,7 +28,8 @@ const int IDLE = 3;
 const int SEND = 4;
 
 
-enum httpMethods { 	GET = 1, POST, PUT, DEL, OPTIONS, HEAD, TRACE };
+
+
 //const int GET = 1;
 //const int POST = 2;
 //const int PUT = 3;
@@ -33,7 +43,7 @@ void removeSocket(int index);
 void acceptConnection(int index);
 void receiveMessage(int index);
 void sendMessage(int index);
-void pain();
+
 
 struct SocketState sockets[MAX_SOCKETS] = { 0 };
 int socketsCount = 0;
@@ -186,12 +196,13 @@ void main()
 			if (FD_ISSET(sockets[i].id, &waitSend))
 			{
 				nfd--;
-				switch (sockets[i].send)
+				sendMessage(i);
+				/*switch (sockets[i].send)
 				{
 				case SEND:
-					sendMessage(i);
+					
 					break;
-				}
+				}*/
 			}
 		}
 	}
@@ -273,9 +284,10 @@ void receiveMessage(int index)
 
 	HttpRequest req;
 	int isValid = parseHttpRequest(reqBuffer, bytesRecv, &req);
+	//cout << req.content << "\n";
 	if (isValid == INVALID_HTTP_MSG)
 	{
-		return;
+		return; //todo : return meaningfull error if type known
 	}
 	else if (strcmp(req.connectionHeader, "close") == 0)
 	{
@@ -309,7 +321,7 @@ void sendMessage(int index)
 	switch (sockets[index].req1.method)
 	{
 	case GET:
-		//response = handleGetRequest(sockets[index].req1);
+		response = handleGetRequest(sockets[index].req1);
 		break;
 	case POST:
 		//response = handlePostRequest(sockets[index].req1);
@@ -330,9 +342,10 @@ void sendMessage(int index)
 		//response = handleDeleteRequest(sockets[index].req1);
 		break;
 	}
-
+	//to do : free malloc of data for request
 	char responseStrBuffer[10000];
 	int responseLen = httpResponseToString(response, responseStrBuffer);
+	//to do : free malloc of data for responce
 	bytesSent = send(msgSocket, responseStrBuffer, responseLen, 0);
 	if (SOCKET_ERROR == bytesSent)
 	{

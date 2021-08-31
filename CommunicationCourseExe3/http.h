@@ -3,6 +3,12 @@
 #define EMPTY_REQ 0
 #define NOT_EMPTY_REQ 1
 
+#define NUMBER_OF_OPTIONS 7
+#define MAX_OPTION_SIZE 100
+enum httpMethodsEnum { GET, POST, PUT, DEL, OPTIONS, HEAD, TRACE };
+const char httpMethods[NUMBER_OF_OPTIONS][MAX_OPTION_SIZE] = { "GET", "POST", "PUT", "DEL", "OPTIONS", "HEAD", "TRACE" };
+
+
 struct HttpRequest
 {
 	char isEmpty = EMPTY_REQ;
